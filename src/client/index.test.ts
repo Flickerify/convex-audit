@@ -1,36 +1,117 @@
-import { describe, expect, test } from "vitest";
-import { exposeApi } from "./index.js";
-import { anyApi, type ApiFromModules } from "convex/server";
-import { components, initConvexTest } from "./setup.test.js";
+import { convexTest } from "convex-test";
+import { expect, test, describe } from "vitest";
+import { api, components } from "../../example/convex/_generated/api.js";
+import auditTest from "../test.js";
+import schema from "../../example/convex/schema.js";
 
-export const { add, list } = exposeApi(components.convexAudit, {
-  auth: async (ctx, _operation) => {
-    return (await ctx.auth.getUserIdentity())?.subject ?? "anonymous";
-  },
-  baseUrl: "https://pirate.monkeyness.com",
-});
+const modules = import.meta.glob("../../example/convex/**/*.ts");
 
-const testApi = (
-  anyApi as unknown as ApiFromModules<{
-    "index.test": {
-      add: typeof add;
-      list: typeof list;
-    };
-  }>
-)["index.test"];
+describe("Audit Log Client", () => {
+  test("can log events through example mutations", async () => {
+    const t = convexTest(schema, modules);
+    auditTest.register(t);
 
-describe("client tests", () => {
-  test("should be able to use client", async () => {
-    const t = initConvexTest().withIdentity({
-      subject: "user1",
+    const result = await t.mutation(api.example.logUserSignIn, {
+      userId: "user_123",
+      email: "test@example.com",
     });
-    const targetId = "test-subject-1";
-    await t.mutation(testApi.add, {
-      text: "My first comment",
-      targetId: targetId,
+
+    expect(result.created).toBe(true);
+    expect(result.eventId).toBeDefined();
+  });
+
+  test("can list events through example queries", async () => {
+    const t = convexTest(schema, modules);
+    auditTest.register(t);
+
+    await t.mutation(api.example.logUserSignIn, {
+      userId: "user_123",
+      email: "test@example.com",
     });
-    const comments = await t.query(testApi.list, { targetId });
-    expect(comments).toHaveLength(1);
-    expect(comments[0].text).toBe("My first comment");
+
+    const result = await t.query(api.example.listAuditEvents, {});
+
+    expect(result.events.length).toBe(1);
+    expect(result.events[0].action).toBe("user.signed_in");
+  });
+
+  test("can log custom events", async () => {
+    const t = convexTest(schema, modules);
+    auditTest.register(t);
+
+    const result = await t.mutation(api.example.logCustomEvent, {
+      action: "custom.action",
+      actorId: "user_123",
+      actorType: "user",
+      targetType: "document",
+      targetId: "doc_456",
+      metadata: { key: "value" },
+    });
+
+    expect(result.created).toBe(true);
+
+    const events = await t.query(api.example.listAuditEvents, {});
+    expect(events.events[0].action).toBe("custom.action");
+    expect(events.events[0].metadata).toEqual({ key: "value" });
+  });
+
+  test("can log failed sign-in attempts", async () => {
+    const t = convexTest(schema, modules);
+    auditTest.register(t);
+
+    const result = await t.mutation(api.example.logFailedSignIn, {
+      email: "attacker@example.com",
+      reason: "Invalid password",
+      ipAddress: "192.168.1.1",
+    });
+
+    expect(result.created).toBe(true);
+
+    const events = await t.query(api.example.listAuditEvents, {});
+    expect(events.events[0].action).toBe("user.sign_in_failed");
+    expect(events.events[0].result).toBe("failure");
+    expect(events.events[0].error?.message).toBe("Invalid password");
+  });
+
+  test("can get audit statistics", async () => {
+    const t = convexTest(schema, modules);
+    auditTest.register(t);
+
+    await t.mutation(api.example.logUserSignIn, {
+      userId: "user_1",
+      email: "user1@example.com",
+    });
+
+    await t.mutation(api.example.logUserSignIn, {
+      userId: "user_2",
+      email: "user2@example.com",
+    });
+
+    const stats = await t.query(api.example.getAuditStats, {});
+
+    expect(stats.totalEvents).toBe(2);
+    expect(stats.eventsByAction["user.signed_in"]).toBe(2);
+  });
+
+  test("can get events for a specific user", async () => {
+    const t = convexTest(schema, modules);
+    auditTest.register(t);
+
+    await t.mutation(api.example.logUserSignIn, {
+      userId: "user_1",
+      email: "user1@example.com",
+    });
+
+    await t.mutation(api.example.logUserSignIn, {
+      userId: "user_2",
+      email: "user2@example.com",
+    });
+
+    const events = await t.query(api.example.getEventsForUser, {
+      userId: "user_1",
+    });
+
+    expect(events.length).toBe(1);
+    expect(events[0].actor.id).toBe("user_1");
   });
 });

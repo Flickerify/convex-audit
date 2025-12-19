@@ -1,20 +1,17 @@
 import { httpRouter } from "convex/server";
-import { registerRoutes } from "@flickeriy/convex-audit";
+import { registerAuditRoutes } from "@flickeriy/convex-audit";
 import { components } from "./_generated/api";
 
 const http = httpRouter();
 
-// Initialize the component
-
-// Register HTTP routes for the component
-// This will expose a GET endpoint at /comments/last that returns the most recent comment
-registerRoutes(http, components.convexAudit, {
-  pathPrefix: "/comments",
+// Register audit log HTTP routes
+// This exposes endpoints like:
+// - GET /audit/events - List recent events
+// - GET /audit/event?id=xxx - Get a single event
+// - GET /audit/stats - Get audit statistics
+// - GET /audit/search?q=xxx - Search events
+registerAuditRoutes(http, components.convexAudit, {
+  pathPrefix: "/audit",
 });
-
-// You can also register routes at different paths
-// convexAudit.registerRoutes(http, {
-//   path: "/api/comments/latest",
-// });
 
 export default http;

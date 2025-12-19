@@ -1,26 +1,35 @@
-/// <reference types="vite/client" />
-import { test } from "vitest";
-import { convexTest } from "convex-test";
-export const modules = import.meta.glob("./**/*.*s");
+import { expect, test, describe } from "vitest";
 
-import {
-  defineSchema,
-  type GenericSchema,
-  type SchemaDefinition,
-} from "convex/server";
-import { type ComponentApi } from "../component/_generated/component.js";
-import { componentsGeneric } from "convex/server";
-import { register } from "../test.js";
+describe("Audit Log Client Setup", () => {
+  test("exports are available", async () => {
+    const client = await import("./index.js");
 
-export function initConvexTest<
-  Schema extends SchemaDefinition<GenericSchema, boolean>,
->(schema?: Schema) {
-  const t = convexTest(schema ?? defineSchema({}), modules);
-  register(t);
-  return t;
-}
-export const components = componentsGeneric() as unknown as {
-  convexAudit: ComponentApi;
-};
+    // Check class export
+    expect(client.AuditLog).toBeDefined();
 
-test("setup", () => {});
+    // Check helper functions
+    expect(client.logAuditEvent).toBeDefined();
+    expect(client.logAuditEventBatch).toBeDefined();
+    expect(client.getAuditEvent).toBeDefined();
+    expect(client.listAuditEvents).toBeDefined();
+    expect(client.searchAuditEvents).toBeDefined();
+    expect(client.getAuditStats).toBeDefined();
+
+    // Check exposeAuditApi
+    expect(client.exposeAuditApi).toBeDefined();
+
+    // Check HTTP routes
+    expect(client.registerAuditRoutes).toBeDefined();
+
+    // Check standard actions
+    expect(client.STANDARD_ACTIONS).toBeDefined();
+    expect(client.STANDARD_ACTIONS.USER_SIGNED_IN).toBe("user.signed_in");
+    expect(client.STANDARD_ACTIONS.USER_SIGNED_OUT).toBe("user.signed_out");
+    expect(client.STANDARD_ACTIONS.RESOURCE_CREATED).toBe("resource.created");
+
+    // Check validators
+    expect(client.actorValidator).toBeDefined();
+    expect(client.targetValidator).toBeDefined();
+    expect(client.contextValidator).toBeDefined();
+  });
+});

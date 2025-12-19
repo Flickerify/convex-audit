@@ -1,3 +1,5 @@
 import { defineComponent } from "convex/server";
 
-export default defineComponent("convexAudit");
+const component = defineComponent("convexAudit");
+
+export default component;
